@@ -119,6 +119,52 @@ start_server() {
     exec python -m uploadserver 8000 --bind 0.0.0.0 --directory "/storage/emulated/0/FTPshare" --allow-replace
 }
 
+stop_server() {
+    clear
+
+    echo
+    echo "httpserver_android"
+    echo
+    echo "========================================"
+    echo "Stop HTTP server"
+    echo "========================================"
+    echo
+    echo "WARNING!"
+    echo
+    echo "Active HTTP transfers may be interrupted."
+    echo
+    echo "1) Confirm and stop"
+    echo
+    echo "0) Cancel"
+    echo
+
+    read -r -p "Choose what to do: " confirm
+
+    case "$confirm" in
+
+        1)
+            echo
+            echo "Stopping HTTP server..."
+            echo
+
+            if pkill -TERM -f 'python -m uploadserver'; then
+                echo "HTTP server stop signal sent."
+            else
+                echo "No HTTP server found or stop failed."
+            fi
+
+            pause_screen
+            ;;
+
+        *)
+            echo
+            echo "Cancelled."
+            pause_screen
+            ;;
+
+    esac
+}
+
 initial_check
 
 while true; do
@@ -129,6 +175,8 @@ while true; do
     echo
     echo
     echo "1) Start HTTP server"
+    echo
+    echo "2) Stop HTTP server"
     echo
     echo
     echo "9) Run Setup / Update (required before first use)"
@@ -143,6 +191,10 @@ while true; do
 
         1)
             start_server
+            ;;
+
+        2)
+            stop_server
             ;;
 
         9)
