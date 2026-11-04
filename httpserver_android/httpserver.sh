@@ -6,6 +6,7 @@ cd "$(dirname "$0")" || exit 1
 APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
+HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
 
 pause_screen() {
     echo
@@ -77,6 +78,9 @@ initial_check() {
 }
 
 start_server() {
+    local mode="${1:-private}"
+    local server_cwd
+
     clear
 
     echo
@@ -97,10 +101,41 @@ start_server() {
         return
     fi
 
-    if ! mkdir -p "$HFS_CWD"; then
+    if [ "$mode" = "public" ]; then
+        server_cwd="$HFS_PUBLIC_CWD"
+    else
+        server_cwd="$HFS_CWD"
+    fi
+
+    if ! mkdir -p "$server_cwd"; then
         echo "Error: cannot create HFS configuration folder."
         pause_screen
         return
+    fi
+
+    # First installation only:
+    # Create a private configuration restricted to logged-in users.
+    # Never overwrite an existing HFS configuration.
+    if [ "$mode" = "private" ] && [ ! -e "$HFS_CWD/config.yaml" ]; then
+
+        if ! cat > "$HFS_CWD/config.yaml" <<EOF
+vfs:
+  source: "$HTTP_DIR/"
+  can_read: "*"
+  can_list: "*"
+  can_upload: "*"
+  can_delete: false
+EOF
+        then
+            echo "Error: cannot initialize HFS configuration."
+            pause_screen
+            return
+        fi
+
+        echo
+        echo "Private configuration initialized."
+        echo "Create your accounts in the HFS admin panel."
+        echo
     fi
 
     echo "Local HTTP address:"
@@ -120,32 +155,64 @@ start_server() {
     echo "Shared folder:"
     echo "$HTTP_DIR"
     echo
+
+    if [ "$mode" = "public" ]; then
+
+        echo "Mode: PUBLIC ACCESS"
+        echo "Anonymous browsing and upload enabled."
+        echo "File deletion disabled."
+        echo
+
+    else
+
+        echo "Mode: SAVED SETTINGS"
+        echo "Using saved HFS accounts and permissions."
+        echo
+
+    fi
+
     echo "Press CTRL+C to stop the HTTP server."
     echo
 
-    # Share FTPshare directly, with anonymous browsing and upload.
-    # Deletion is intentionally disabled (see notes in the delivery).
-    HFS_VFS="{\"source\":\"$HTTP_DIR/\",\"can_read\":true,\"can_list\":true,\"can_upload\":true,\"can_delete\":false}"
+    if [ "$mode" = "public" ]; then
 
-    # A dedicated --cwd lets option 2 identify only this HFS instance.
-    exec hfs --cwd "$HFS_CWD" --port 8000 --listen_interface 0.0.0.0 --open_browser_at_start false --vfs "$HFS_VFS"
+        # Public mode uses a separate configuration folder.
+        # Apply the original public permissions at every start.
+        HFS_VFS="{\"source\":\"$HTTP_DIR/\",\"can_read\":true,\"can_list\":true,\"can_upload\":true,\"can_delete\":false}"
+
+        exec hfs --cwd "$HFS_PUBLIC_CWD" --port 8000 --listen_interface 0.0.0.0 --open_browser_at_start false --vfs "$HFS_VFS"
+
+    else
+
+        # Private mode loads the saved HFS configuration.
+        # No --vfs argument, so saved permissions are preserved.
+        exec hfs --cwd "$HFS_CWD" --port 8000 --listen_interface 0.0.0.0 --open_browser_at_start false
+
+    fi
 }
 
-stop_server() {
+start_public_server() {
     clear
 
     echo
     echo "httpserver_android"
     echo
     echo "========================================"
-    echo "Stop HTTP server"
+    echo "Start HTTP server - Public access"
     echo "========================================"
     echo
     echo "WARNING!"
     echo
-    echo "Active HTTP transfers may be interrupted."
+    echo "No login or password will be required."
     echo
-    echo "1) Confirm and stop"
+    echo "Anyone who can reach the server can:"
+    echo "- Browse shared files"
+    echo "- Download shared files"
+    echo "- Upload new files"
+    echo
+    echo "File deletion will remain disabled."
+    echo
+    echo "1) Confirm and start"
     echo
     echo "0) Cancel"
     echo
@@ -155,18 +222,7 @@ stop_server() {
     case "$confirm" in
 
         1)
-            echo
-            echo "Stopping HTTP server..."
-            echo
-
-            # Match the specific --cwd used above, not all Node.js servers.
-            if pkill -TERM -f -- "--cwd $HFS_CWD"; then
-                echo "HTTP server stop signal sent."
-            else
-                echo "No HTTP server found or stop failed."
-            fi
-
-            pause_screen
+            start_server public
             ;;
 
         *)
@@ -187,9 +243,10 @@ while true; do
     echo "httpserver_android"
     echo
     echo
-    echo "1) Start HTTP server"
+    echo "1) Start HTTP server (Saved settings)"
     echo
-    echo "2) Stop HTTP server"
+    echo
+    echo "3) Start HTTP server (Public access)"
     echo
     echo
     echo "9) Run Setup / Update (required before first use)"
@@ -203,11 +260,11 @@ while true; do
     case "$choice" in
 
         1)
-            start_server
+            start_server private
             ;;
 
-        2)
-            stop_server
+        3)
+            start_public_server
             ;;
 
         9)

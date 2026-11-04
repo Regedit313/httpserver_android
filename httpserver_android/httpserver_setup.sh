@@ -8,6 +8,7 @@ cd "$(dirname "$0")" || exit 1
 APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
+HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
 
 echo
 echo "httpserver_android Setup / Update"
@@ -131,16 +132,28 @@ fi
 echo "HFS 3 is available."
 echo
 
-echo "Creating/checking HFS configuration folder..."
+echo "Creating/checking HFS configuration folders..."
 
 if ! mkdir -p "$HFS_CWD"; then
     echo
-    echo "Error: cannot create HFS configuration folder:"
+    echo "Error: cannot create private HFS configuration folder:"
     echo "$HFS_CWD"
     echo
     read -p "Press Enter to continue..."
     exit 1
 fi
+
+if ! mkdir -p "$HFS_PUBLIC_CWD"; then
+    echo
+    echo "Error: cannot create public HFS configuration folder:"
+    echo "$HFS_PUBLIC_CWD"
+    echo
+    read -p "Press Enter to continue..."
+    exit 1
+fi
+
+echo "HFS configuration folders are available."
+echo
 
 echo "Setting script permissions..."
 
