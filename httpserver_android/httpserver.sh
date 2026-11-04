@@ -5,6 +5,7 @@ cd "$(dirname "$0")" || exit 1
 
 APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
+HFS_CWD="$HOME/.hfs_httpserver_android"
 
 pause_screen() {
     echo
@@ -12,9 +13,9 @@ pause_screen() {
 }
 
 check_installation() {
-    command -v python >/dev/null 2>&1 || return 1
+    command -v node >/dev/null 2>&1 || return 1
 
-    python -c 'import uploadserver' >/dev/null 2>&1 || return 1
+    command -v hfs >/dev/null 2>&1 || return 1
 
     return 0
 }
@@ -56,7 +57,7 @@ initial_check() {
 
     if ! check_installation; then
         echo
-        echo "Python or uploadserver is missing."
+        echo "Node.js or HFS 3 is missing."
         echo "Running first-time setup automatically..."
         echo
 
@@ -83,7 +84,7 @@ start_server() {
     echo
 
     if ! check_installation; then
-        echo "Python uploadserver is not available."
+        echo "HFS 3 is not installed."
         echo "Run Setup / Update (option 9)."
         pause_screen
         return
@@ -96,17 +97,23 @@ start_server() {
         return
     fi
 
+    if ! mkdir -p "$HFS_CWD"; then
+        echo "Error: cannot create HFS configuration folder."
+        pause_screen
+        return
+    fi
+
     echo "Local HTTP address:"
 
-    LOCAL_IP="$(python -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect(('8.8.8.8',80));print(s.getsockname()[0]);s.close()" 2>/dev/null)"
+    LOCAL_IP="$(node -e 'const s=require("dgram").createSocket("udp4");s.on("error",()=>s.close());s.connect(80,"8.8.8.8",()=>{console.log(s.address().address);s.close()})' 2>/dev/null)"
 
     if [ -n "$LOCAL_IP" ]; then
-        echo "Browse / Download: http://$LOCAL_IP:8000/"
-        echo "Upload files:      http://$LOCAL_IP:8000/upload"
+        echo "Browse / Upload: http://$LOCAL_IP:8000/"
     else
         echo "IP unavailable (check local network)."
     fi
 
+    echo "On this phone: http://127.0.0.1:8000/"
     echo
     echo "HTTP port: 8000"
     echo
@@ -116,7 +123,12 @@ start_server() {
     echo "Press CTRL+C to stop the HTTP server."
     echo
 
-    exec python -m uploadserver 8000 --bind 0.0.0.0 --directory "/storage/emulated/0/FTPshare" --allow-replace
+    # Share FTPshare directly, with anonymous browsing and upload.
+    # Deletion is intentionally disabled (see notes in the delivery).
+    HFS_VFS="{\"source\":\"$HTTP_DIR/\",\"can_read\":true,\"can_list\":true,\"can_upload\":true,\"can_delete\":false}"
+
+    # A dedicated --cwd lets option 2 identify only this HFS instance.
+    exec hfs --cwd "$HFS_CWD" --port 8000 --listen_interface 0.0.0.0 --open_browser_at_start false --vfs "$HFS_VFS"
 }
 
 stop_server() {
@@ -147,7 +159,8 @@ stop_server() {
             echo "Stopping HTTP server..."
             echo
 
-            if pkill -TERM -f 'python -m uploadserver'; then
+            # Match the specific --cwd used above, not all Node.js servers.
+            if pkill -TERM -f -- "--cwd $HFS_CWD"; then
                 echo "HTTP server stop signal sent."
             else
                 echo "No HTTP server found or stop failed."
@@ -215,3 +228,4 @@ while true; do
 
     esac
 done
+

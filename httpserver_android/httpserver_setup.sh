@@ -7,6 +7,7 @@ cd "$(dirname "$0")" || exit 1
 
 APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
+HFS_CWD="$HOME/.hfs_httpserver_android"
 
 echo
 echo "httpserver_android Setup / Update"
@@ -67,11 +68,48 @@ fi
 echo "Shared folder: $HTTP_DIR"
 echo
 
-echo "Installing Python..."
+echo "Installing/checking Node.js and OpenSSL..."
 
-if ! pkg install -y python; then
+# Keep any existing Node.js installation; avoid replacing it unnecessarily.
+if ! command -v node >/dev/null 2>&1; then
+    if ! pkg install -y nodejs-lts; then
+        echo
+        echo "Error: Node.js installation failed."
+        echo
+        read -p "Press Enter to continue..."
+        exit 1
+    fi
+fi
+
+if ! pkg install -y openssl; then
     echo
-    echo "Error: Python installation failed."
+    echo "Error: OpenSSL installation failed."
+    echo
+    read -p "Press Enter to continue..."
+    exit 1
+fi
+
+hash -r
+
+if ! command -v npm >/dev/null 2>&1; then
+    echo
+    echo "Installing npm..."
+
+    if ! pkg install -y npm; then
+        echo
+        echo "Error: npm installation failed."
+        echo
+        read -p "Press Enter to continue..."
+        exit 1
+    fi
+fi
+
+echo
+echo "Installing/updating HFS 3..."
+
+if ! npm install -g hfs@latest; then
+    echo
+    echo "Error: HFS 3 installation failed."
     echo
     read -p "Press Enter to continue..."
     exit 1
@@ -80,29 +118,29 @@ fi
 hash -r
 
 echo
-echo "Installing/updating uploadserver..."
+echo "Checking HFS 3..."
 
-if ! python -m pip install -U uploadserver; then
+if ! command -v node >/dev/null 2>&1 || ! command -v hfs >/dev/null 2>&1; then
     echo
-    echo "Error: uploadserver installation failed."
-    echo
-    read -p "Press Enter to continue..."
-    exit 1
-fi
-
-echo
-echo "Checking uploadserver..."
-
-if ! python -c 'import uploadserver'; then
-    echo
-    echo "Error: uploadserver is not available."
+    echo "Error: Node.js or HFS 3 is not available."
     echo
     read -p "Press Enter to continue..."
     exit 1
 fi
 
-echo "uploadserver is available."
+echo "HFS 3 is available."
 echo
+
+echo "Creating/checking HFS configuration folder..."
+
+if ! mkdir -p "$HFS_CWD"; then
+    echo
+    echo "Error: cannot create HFS configuration folder:"
+    echo "$HFS_CWD"
+    echo
+    read -p "Press Enter to continue..."
+    exit 1
+fi
 
 echo "Setting script permissions..."
 
@@ -151,8 +189,9 @@ echo "Start the server by launching:"
 echo "$APP_DIR/httpserver.sh"
 echo
 echo "The server runs on port 8000."
-echo "Files: http://<ANDROID_IP>:8000/"
-echo "Upload: http://<ANDROID_IP>:8000/upload"
+echo "Browse / Upload: http://<ANDROID_IP>:8000/"
+echo "On this phone: http://127.0.0.1:8000/"
 echo "Press CTRL+C to stop it."
 echo
 read -p "Press Enter to continue..."
+
