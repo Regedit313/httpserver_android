@@ -8,6 +8,9 @@ HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
 HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
 
+BACKUP_DIR="$APP_DIR/config"
+BACKUP_FILE="$BACKUP_DIR/hfs_backup.tar.gz"
+
 pause_screen() {
     echo
     read -r -p "Press Enter to continue..."
@@ -75,6 +78,12 @@ initial_check() {
     check_storage
 
     mkdir -p "$HTTP_DIR" 2>/dev/null || true
+
+    if ! mkdir -p "$BACKUP_DIR"; then
+        echo
+        echo "Error: cannot create config folder."
+        pause_screen
+    fi
 }
 
 start_server() {
@@ -234,6 +243,277 @@ start_public_server() {
     esac
 }
 
+# ========================================
+# BACKUP / RESTORE
+# ========================================
+
+export_config() {
+    clear
+
+    echo
+    echo "httpserver_android"
+    echo
+    echo "========================================"
+    echo "Export config + accounts"
+    echo "========================================"
+    echo
+
+    if ! command -v tar >/dev/null 2>&1; then
+        echo "Error: tar is not installed."
+        echo "Run Setup / Update (option 9)."
+        pause_screen
+        return
+    fi
+
+    if [ ! -d "$HFS_CWD" ]; then
+        echo "No HFS configuration folder found."
+        echo "Start the HTTP server first."
+        pause_screen
+        return
+    fi
+
+    if ! mkdir -p "$BACKUP_DIR"; then
+        echo "Error: cannot create config folder."
+        pause_screen
+        return
+    fi
+
+    if [ -f "$BACKUP_FILE" ]; then
+        echo "A backup already exists."
+        echo
+        echo "Do you want to overwrite it?"
+        echo
+        echo "1) Confirm and overwrite"
+        echo
+        echo "0) Cancel"
+        echo
+
+        read -r -p "Choose what to do: " confirm
+
+        if [ "$confirm" != "1" ]; then
+            echo
+            echo "Cancelled."
+            pause_screen
+            return
+        fi
+    fi
+
+    echo
+    echo "Exporting HFS configuration..."
+    echo
+
+    # Create a temporary archive first.
+    # Preserve any existing backup if export fails.
+    local temp_backup
+
+    if ! temp_backup="$(mktemp "$BACKUP_DIR/.hfs_backup.XXXXXX")"; then
+        echo "Error: cannot create temporary backup."
+        pause_screen
+        return
+    fi
+
+    if tar -czf "$temp_backup" -C "$HFS_CWD" . && \
+       mv -f "$temp_backup" "$BACKUP_FILE"; then
+
+        echo
+        echo "Export completed successfully."
+        echo
+        echo "Backup saved to:"
+        echo "$BACKUP_FILE"
+
+    else
+        rm -f "$temp_backup"
+
+        echo
+        echo "Error: export failed."
+        echo "Existing backup was not replaced."
+    fi
+
+    pause_screen
+}
+
+import_config() {
+    clear
+
+    echo
+    echo "httpserver_android"
+    echo
+    echo "========================================"
+    echo "Import config + accounts"
+    echo "========================================"
+    echo
+
+    if ! command -v tar >/dev/null 2>&1; then
+        echo "Error: tar is not installed."
+        echo "Run Setup / Update (option 9)."
+        pause_screen
+        return
+    fi
+
+    if [ ! -f "$BACKUP_FILE" ]; then
+        echo "No backup file found."
+        echo
+        echo "Please put hfs_backup.tar.gz inside:"
+        echo "$BACKUP_DIR"
+        echo
+        pause_screen
+        return
+    fi
+
+    echo "Backup found:"
+    echo "$BACKUP_FILE"
+    echo
+    echo "WARNING!"
+    echo
+    echo "Stop the HTTP server before importing."
+    echo
+    echo "This will replace the current saved settings"
+    echo "and accounts used by option 1."
+    echo
+    echo "1) Confirm and import"
+    echo
+    echo "0) Cancel"
+    echo
+
+    read -r -p "Choose what to do: " confirm
+
+    if [ "$confirm" != "1" ]; then
+        echo
+        echo "Cancelled."
+        pause_screen
+        return
+    fi
+
+    echo
+    echo "Importing HFS configuration..."
+    echo
+
+    local temp_dir old_dir
+
+    # Extract first without touching the existing configuration.
+    if ! temp_dir="$(mktemp -d "$HOME/.hfs_import.XXXXXX")"; then
+        echo "Error: cannot create temporary import folder."
+        pause_screen
+        return
+    fi
+
+    if ! tar -xzf "$BACKUP_FILE" -C "$temp_dir"; then
+        rm -rf "$temp_dir"
+
+        echo
+        echo "Error: cannot extract backup archive."
+        echo "Current configuration was not changed."
+        pause_screen
+        return
+    fi
+
+    # Extraction succeeded.
+    # Move the existing configuration aside temporarily.
+    old_dir=""
+
+    if [ -e "$HFS_CWD" ]; then
+
+        old_dir="${HFS_CWD}.before_import.$$"
+
+        if [ -e "$old_dir" ] || ! mv "$HFS_CWD" "$old_dir"; then
+            rm -rf "$temp_dir"
+
+            echo
+            echo "Error: cannot prepare configuration replacement."
+            pause_screen
+            return
+        fi
+
+    fi
+
+    # Activate imported configuration.
+    if mv "$temp_dir" "$HFS_CWD"; then
+
+        echo
+        echo "Import completed successfully."
+        echo
+        echo "Saved settings and accounts restored."
+        echo
+        echo "Start option 1 to use the imported configuration."
+
+        # Delete the previous configuration after successful replacement.
+        if [ -n "$old_dir" ]; then
+            if ! rm -rf "$old_dir"; then
+                echo
+                echo "Warning: old configuration cleanup failed:"
+                echo "$old_dir"
+            fi
+        fi
+
+    else
+
+        echo
+        echo "Error: cannot activate imported configuration."
+
+        # Restore the previous configuration if replacement failed.
+        if [ -n "$old_dir" ]; then
+            if ! mv "$old_dir" "$HFS_CWD"; then
+                echo "Warning: cannot restore previous configuration."
+                echo "Previous files are in:"
+                echo "$old_dir"
+            fi
+        fi
+
+        rm -rf "$temp_dir"
+
+    fi
+
+    pause_screen
+}
+
+backup_restore_menu() {
+    while true; do
+        clear
+
+        echo
+        echo "httpserver_android"
+        echo
+        echo "========================================"
+        echo "Backup / Restore configuration"
+        echo "========================================"
+        echo
+        echo "1) Export config + accounts"
+        echo
+        echo "2) Import config + accounts"
+        echo
+        echo "0) Back"
+        echo
+
+        read -r -p "Choose what to do: " choice
+
+        case "$choice" in
+
+            1)
+                export_config
+                ;;
+
+            2)
+                import_config
+                ;;
+
+            0)
+                return
+                ;;
+
+            *)
+                echo
+                echo "Invalid choice."
+                sleep 1
+                ;;
+
+        esac
+    done
+}
+
+# ========================================
+# MAIN MENU
+# ========================================
+
 initial_check
 
 while true; do
@@ -247,6 +527,9 @@ while true; do
     echo
     echo
     echo "3) Start HTTP server (Public access)"
+    echo
+    echo
+    echo "5) Backup / Restore configuration"
     echo
     echo
     echo "9) Run Setup / Update (required before first use)"
@@ -265,6 +548,10 @@ while true; do
 
         3)
             start_public_server
+            ;;
+
+        5)
+            backup_restore_menu
             ;;
 
         9)

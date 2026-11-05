@@ -9,6 +9,7 @@ APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
 HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
+BACKUP_DIR="$APP_DIR/config"
 
 echo
 echo "httpserver_android Setup / Update"
@@ -132,6 +133,25 @@ fi
 echo "HFS 3 is available."
 echo
 
+echo "Checking backup tools..."
+echo
+
+if ! command -v tar >/dev/null 2>&1; then
+    echo "Installing tar..."
+    echo
+
+    if ! pkg install -y tar; then
+        echo
+        echo "Error: tar installation failed."
+        echo
+        read -p "Press Enter to continue..."
+        exit 1
+    fi
+fi
+
+echo "Backup tools are available."
+echo
+
 echo "Creating/checking HFS configuration folders..."
 
 if ! mkdir -p "$HFS_CWD"; then
@@ -153,6 +173,20 @@ if ! mkdir -p "$HFS_PUBLIC_CWD"; then
 fi
 
 echo "HFS configuration folders are available."
+echo
+
+echo "Creating/checking backup folder..."
+
+if ! mkdir -p "$BACKUP_DIR"; then
+    echo
+    echo "Error: cannot create backup folder:"
+    echo "$BACKUP_DIR"
+    echo
+    read -p "Press Enter to continue..."
+    exit 1
+fi
+
+echo "Backup folder: $BACKUP_DIR"
 echo
 
 echo "Setting script permissions..."
@@ -186,6 +220,11 @@ if [ ! -d "$HTTP_DIR" ]; then
     missing=1
 fi
 
+if [ ! -d "$BACKUP_DIR" ]; then
+    echo "- Missing: config"
+    missing=1
+fi
+
 if [ "$missing" -ne 0 ]; then
     echo
     echo "Warning: one or more project files/folders are missing."
@@ -197,6 +236,9 @@ echo "Installation completed."
 echo
 echo "Shared HTTP folder:"
 echo "$HTTP_DIR"
+echo
+echo "Backup folder:"
+echo "$BACKUP_DIR"
 echo
 echo "Start the server by launching:"
 echo "$APP_DIR/httpserver.sh"
