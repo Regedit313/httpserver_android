@@ -8,8 +8,7 @@ HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
 HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
 
-BACKUP_DIR="$APP_DIR/config"
-BACKUP_FILE="$BACKUP_DIR/hfs_backup.tar.gz"
+BACKUP_FILE="$APP_DIR/hfs_backup.tar.gz"
 
 pause_screen() {
     echo
@@ -78,12 +77,6 @@ initial_check() {
     check_storage
 
     mkdir -p "$HTTP_DIR" 2>/dev/null || true
-
-    if ! mkdir -p "$BACKUP_DIR"; then
-        echo
-        echo "Error: cannot create config folder."
-        pause_screen
-    fi
 }
 
 start_server() {
@@ -272,12 +265,6 @@ export_config() {
         return
     fi
 
-    if ! mkdir -p "$BACKUP_DIR"; then
-        echo "Error: cannot create config folder."
-        pause_screen
-        return
-    fi
-
     if [ -f "$BACKUP_FILE" ]; then
         echo "A backup already exists."
         echo
@@ -306,7 +293,7 @@ export_config() {
     # Preserve any existing backup if export fails.
     local temp_backup
 
-    if ! temp_backup="$(mktemp "$BACKUP_DIR/.hfs_backup.XXXXXX")"; then
+    if ! temp_backup="$(mktemp "$APP_DIR/.hfs_backup.XXXXXX")"; then
         echo "Error: cannot create temporary backup."
         pause_screen
         return
@@ -354,7 +341,7 @@ import_config() {
         echo "No backup file found."
         echo
         echo "Please put hfs_backup.tar.gz inside:"
-        echo "$BACKUP_DIR"
+        echo "$APP_DIR"
         echo
         pause_screen
         return

@@ -9,7 +9,6 @@ APP_DIR="$(pwd -P)"
 HTTP_DIR="/storage/emulated/0/FTPshare"
 HFS_CWD="$HOME/.hfs_httpserver_android"
 HFS_PUBLIC_CWD="$HOME/.hfs_httpserver_public"
-BACKUP_DIR="$APP_DIR/config"
 
 echo
 echo "httpserver_android Setup / Update"
@@ -175,20 +174,6 @@ fi
 echo "HFS configuration folders are available."
 echo
 
-echo "Creating/checking backup folder..."
-
-if ! mkdir -p "$BACKUP_DIR"; then
-    echo
-    echo "Error: cannot create backup folder:"
-    echo "$BACKUP_DIR"
-    echo
-    read -p "Press Enter to continue..."
-    exit 1
-fi
-
-echo "Backup folder: $BACKUP_DIR"
-echo
-
 echo "Setting script permissions..."
 
 chmod +x "$APP_DIR/httpserver.sh" 2>/dev/null
@@ -220,11 +205,6 @@ if [ ! -d "$HTTP_DIR" ]; then
     missing=1
 fi
 
-if [ ! -d "$BACKUP_DIR" ]; then
-    echo "- Missing: config"
-    missing=1
-fi
-
 if [ "$missing" -ne 0 ]; then
     echo
     echo "Warning: one or more project files/folders are missing."
@@ -237,8 +217,8 @@ echo
 echo "Shared HTTP folder:"
 echo "$HTTP_DIR"
 echo
-echo "Backup folder:"
-echo "$BACKUP_DIR"
+echo "Backup file location:"
+echo "$APP_DIR/hfs_backup.tar.gz"
 echo
 echo "Start the server by launching:"
 echo "$APP_DIR/httpserver.sh"
